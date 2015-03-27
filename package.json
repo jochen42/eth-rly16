@@ -1,0 +1,23 @@
+{
+  "name": "eth-rly16",
+  "version": "0.2.0",
+  "description": "nodejs module for controlling ETH-RLY16 card of Devantech Ltd",
+  "main": "ETHRLY16.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jochen42/eth-rly16.git"
+  },
+  "keywords": [
+    "relay",
+    "ethrly16"
+  ],
+  "author": "Jochen Weber <mail@jochen-weber.net> (http://www.jochen-weber.net)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jochen42/eth-rly16/issues"
+  },
+  "homepage": "https://github.com/jochen42/eth-rly16"
+}
