@@ -22,7 +22,7 @@ oCard.relaisOn(i, function () {
     // switch relais i off
     oCard.relaisOff(i, function () {
 
-        // SHOULD log true
+        // SHOULD log false
         console.log("State if Relais " + i + ": " + oCard.isRelayOn(i));
 
     });
