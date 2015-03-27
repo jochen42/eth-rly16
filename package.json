@@ -1,8 +1,8 @@
 {
   "name": "eth-rly16",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "nodejs module for controlling ETH-RLY16 card of Devantech Ltd",
-  "main": "ETHRLY16.js",
+  "main": "EthRly16.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
