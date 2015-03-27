@@ -2,9 +2,8 @@
  * nodejs module for controlling ETH-RLY16 card of Devantech Ltd
  *
  * @date: 03.05.2013
- * @author: jochen.weber@jochen-weber.net
+ * @author: mail@jochen-weber.net
  */
-
 
 
 
@@ -14,9 +13,7 @@
 var net = require('net');
 
 
-
-var ETHRLY16 = null;
-
+var EthRly16 = null;
 
 
 (function () {
@@ -30,23 +27,23 @@ var ETHRLY16 = null;
      * @param oParams
      * @constructor
      */
-    ETHRLY16 = function(oParams) {
+    EthRly16 = function(oParams) {
         var self = this;
 
         // default Connection-Parameters
         this.host = "127.0.0.1";
         this.port = 17494;
         this.countRelays = 8;
-        this.iGetStateIntervalTimeout = 100;
+        this.iGetStateIntervalTimeout = 5000;
 
         // werte aus uebergebener config
-        if( typeof(oParams.host) !== undefined )
+        if( oParams.host !== undefined )
             this.host = oParams.host;
-        if( typeof(oParams.port) !== undefined )
+        if( oParams.port !== undefined )
             this.port = oParams.port;
-        if( typeof(oParams.countRelays) !== undefined )
+        if( oParams.countRelays !== undefined )
             this.countRelays = oParams.countRelays;
-        if( typeof(oParams.iGetStateIntervalTimeout) !== undefined )
+        if( oParams.iGetStateIntervalTimeout !== undefined )
             this.iGetStateIntervalTimeout = oParams.iGetStateIntervalTimeout;
 
 
@@ -65,7 +62,6 @@ var ETHRLY16 = null;
         this.client.on('connect', function() {
             self.getStates();
             self.bConnected = true;
-            //console.log("connected to: " + self.host);
             self.idStatesInterval = setInterval(function(){
                 self.getStates();
             }, self.iGetStateIntervalTimeout);
@@ -84,13 +80,19 @@ var ETHRLY16 = null;
          */
         this.client.on('end', function() {
             self.bConnected = false;
-            //console.log('disconnected from ' + self.host);
             clearInterval(self.idStatesInterval);
         });
 
 
     };
 
+
+    /**
+     * if this is true, the system waits for getting new states
+     *
+     * @type {boolean}
+     */
+    EthRly16.prototype.aStatesDataCallbacks = [];
 
 
 
@@ -99,7 +101,7 @@ var ETHRLY16 = null;
      *
      * @param SerBuf
      */
-    ETHRLY16.prototype.getStatesFromData = function(SerBuf){
+    EthRly16.prototype.getStatesFromData = function(SerBuf){
         var self = this;
 
         if ((SerBuf[0] & 0x01) == 0x01)
@@ -141,13 +143,20 @@ var ETHRLY16 = null;
             this.currentStates[7] = true;
         else
             this.currentStates[7] = false;
+
+
+        // run registered callbacks
+        this.aStatesDataCallbacks.forEach(function(val, i){
+            self.aStatesDataCallbacks[i]();
+            self.aStatesDataCallbacks.splice(i, i+1);
+        });
     };
 
 
     /**
      * close tcp connection
      */
-    ETHRLY16.prototype.disconnect = function() {
+    EthRly16.prototype.disconnect = function() {
         this.client.emit("close");
     };
 
@@ -156,16 +165,29 @@ var ETHRLY16 = null;
     /**
      * get the states from th socket
      */
-    ETHRLY16.prototype.getStates = function() {
-        //console.log("getStates on " + this.host);
+    EthRly16.prototype.getStates = function() {
+        var self = this;
         var iii = new Number();
         iii = 0x5B;
         var bSuccess = this.client.write(
             iii.toString(16),
             'hex',
-            function() {
+            function(){
             }
         );
+    }
+
+
+    /**
+     *
+     * @param callback
+     */
+    EthRly16.prototype.waitForStatesCallBackInit = function(callback) {
+        var self = this;
+        if( callback !== undefined ) {
+            self.getStates();
+            this.aStatesDataCallbacks.push(callback);
+        }
     }
 
 
@@ -175,12 +197,16 @@ var ETHRLY16 = null;
      *
      * @returns boolean
      */
-    ETHRLY16.prototype.allOff = function() {
+    EthRly16.prototype.allOff = function(callback) {
+        var self = this;
         var iii = new Number();
         iii = 0x6E;
         var bSuccess = this.client.write(
             iii.toString(16),
-            'hex'
+            'hex',
+            function(){
+                self.waitForStatesCallBackInit(callback);
+            }
         );
         return bSuccess;
     };
@@ -192,12 +218,16 @@ var ETHRLY16 = null;
      *
      * @returns boolean
      */
-    ETHRLY16.prototype.allOn = function() {
+    EthRly16.prototype.allOn = function(callback) {
+        var self = this;
         var iii = new Number();
         iii = 0x64;
         var bSuccess = this.client.write(
             iii.toString(16),
-            'hex'
+            'hex',
+            function(){
+                self.waitForStatesCallBackInit(callback);
+            }
         );
         return bSuccess;
     };
@@ -208,18 +238,20 @@ var ETHRLY16 = null;
      * Switch a single relay off
      *
      * @param iRelaisNo
-     * @returns boolean
      */
-    ETHRLY16.prototype.relaisOff = function(iRelaisNo) {
+    EthRly16.prototype.relaisOff = function(iRelaisNo, callback) {
+        var self = this;
         var iii = new Number();
         iii = 111;
         iii += iRelaisNo;
         //console.log(iii);
         var bSuccess = this.client.write(
             iii.toString(16),
-            'hex'
+            'hex',
+            function(){
+                self.waitForStatesCallBackInit(callback);
+            }
         );
-        return bSuccess;
     };
 
 
@@ -229,25 +261,30 @@ var ETHRLY16 = null;
      * @param iRelaisNo
      * @returns boolean
      */
-    ETHRLY16.prototype.relaisOn = function(iRelaisNo) {
+    EthRly16.prototype.relaisOn = function(iRelaisNo, callback) {
+        var self = this;
         var iii = new Number();
         iii = 101;
         iii += iRelaisNo;
         //console.log(iii);
         var bSuccess = this.client.write(
             iii.toString(16),
-            'hex'
+            'hex',
+            function(){
+                self.waitForStatesCallBackInit(callback);
+            }
         );
         return bSuccess;
     };
 
 
     /**
-     * Switch multiple cards
+     * Switch multiple relais
      *
      * @param aStates
      */
-    ETHRLY16.prototype.switchStates = function(aStates) {
+    EthRly16.prototype.switchStates = function(aStates) {
+        var self = this;
         for( var i=0 ; i<aStates.length ; i++ ) {
             if( aStates[i] )
                 this.relaisOn(i)
@@ -263,7 +300,7 @@ var ETHRLY16 = null;
      * @param iRelay
      * @returns boolean
      */
-    ETHRLY16.prototype.isRelayOn = function(iRelay) {
+    EthRly16.prototype.isRelayOn = function(iRelay) {
         return this.currentStates[iRelay];
     };
 
@@ -277,4 +314,4 @@ var ETHRLY16 = null;
 /**
  * node js export
  */
-module.exports = ETHRLY16;
+module.exports = EthRly16;
