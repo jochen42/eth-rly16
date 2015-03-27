@@ -22,7 +22,7 @@ oCard.relaisOn(i, function () {
     // switch relais i off
     oCard.relaisOff(i, function () {
 
-        // SHOULD log true
+        // SHOULD log false
         console.log("State if Relais " + i + ": " + oCard.isRelayOn(i));
 
     });
@@ -34,7 +34,7 @@ oCard.relaisOn(i, function () {
 * host: IP or Hostname of the Device
 * port: TCP-Port of the Device (optional)
 * countRelays: the count of the used relays (optional, default 8)
-* iGetStateIntervalTimeout: reread-timeout in milliseconds (optional, default: 200)
+* iGetStateIntervalTimeout: reread-timeout in milliseconds (optional, default: 5000)
 
 ## Version History
 * 0.2.4 bug fixing - (making it work :))
