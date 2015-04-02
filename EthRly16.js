@@ -6,7 +6,6 @@
  */
 
 
-
 /**
  * Modul requirements
  */
@@ -27,62 +26,34 @@ var EthRly16 = null;
      * @param oParams
      * @constructor
      */
-    EthRly16 = function(oParams) {
+    EthRly16 = function (oParams) {
         var self = this;
 
         // default Connection-Parameters
         this.host = "127.0.0.1";
         this.port = 17494;
         this.countRelays = 8;
-        this.iGetStateIntervalTimeout = 5000;
+        this.iGetStateIntervalTimeout = 2000;
 
         // werte aus uebergebener config
-        if( oParams.host !== undefined )
+        if (oParams.host !== undefined)
             this.host = oParams.host;
-        if( oParams.port !== undefined )
+        if (oParams.port !== undefined)
             this.port = oParams.port;
-        if( oParams.countRelays !== undefined )
+        if (oParams.countRelays !== undefined)
             this.countRelays = oParams.countRelays;
-        if( oParams.iGetStateIntervalTimeout !== undefined )
+        if (oParams.iGetStateIntervalTimeout !== undefined)
             this.iGetStateIntervalTimeout = oParams.iGetStateIntervalTimeout;
-
+        if (oParams.getStatesCallback !== undefined)
+            this.getStatesCallback = oParams.getStatesCallback;
 
         // default states
-        this.bConnected = false;
         this.currentStates = [false, false, false, false, false, false, false, false];
 
-        // NET-CLIENT-Instancee
-        this.client = net.createConnection({host: this.host, port: this.port});
 
-        this.idStatesInterval = false;
-
-        /**
-         * the connection is estabilished, read the states and create an intervall
-         */
-        this.client.on('connect', function() {
+        self.idStatesInterval = setInterval(function () {
             self.getStates();
-            self.bConnected = true;
-            self.idStatesInterval = setInterval(function(){
-                self.getStates();
-            }, self.iGetStateIntervalTimeout);
-        });
-
-
-        /**
-         * relay sends us some data, try to interpretate
-         */
-        this.client.on('data', function(data) {
-            self.getStatesFromData(data);
-        });
-
-        /**
-         * connection closed
-         */
-        this.client.on('end', function() {
-            self.bConnected = false;
-            clearInterval(self.idStatesInterval);
-        });
-
+        }, self.iGetStateIntervalTimeout);
 
     };
 
@@ -95,13 +66,13 @@ var EthRly16 = null;
     EthRly16.prototype.aStatesDataCallbacks = [];
 
 
-
     /**
      * interpretas the states from serial buffer
      *
      * @param SerBuf
      */
-    EthRly16.prototype.getStatesFromData = function(SerBuf){
+    EthRly16.prototype.getStatesFromData = function (SerBuf) {
+        console.log("getStatesFromData");
         var self = this;
 
         if ((SerBuf[0] & 0x01) == 0x01)
@@ -145,19 +116,103 @@ var EthRly16 = null;
             this.currentStates[7] = false;
 
 
-        // run registered callbacks
-        this.aStatesDataCallbacks.forEach(function(val, i){
-            self.aStatesDataCallbacks[i]();
-            self.aStatesDataCallbacks.splice(i, i+1);
-        });
+
+        console.log(typeof this.getStatesCallback);
+        if (typeof this.getStatesCallback === "function") {
+            this.getStatesCallback(this.getStatesCallbackData);
+        }
     };
 
 
+    EthRly16.prototype.setGetStatesCallback = function (cb, data) {
+        this.getStatesCallback = cb;
+        this.getStatesCallbackData = data;
+    }
+
+
+
+
+    EthRly16.prototype.getClient = function (cb) {
+        var self = this;
+        if (this.client !== undefined) {
+            cb(self.client);
+            return;
+        }
+
+        this.idStatesInterval = false;
+
+        // NET-CLIENT-Instancee
+
+        this.client = new net.Socket({
+            readable: true,
+            writable: true
+        });
+        this.client.connect(
+            this.port,
+            this.host,
+            function(){
+                self.client.setNoDelay(true);
+                self.getStates();
+                console.log("EthRly16:getClient:client:connect");
+
+
+                self.client.on('close', function (had_error) {
+                    console.log("EthRly16:getClient:client:connect:close");
+
+                    clearInterval(self.idStatesInterval);
+
+                    self.client = undefined;
+                });
+
+
+                /**
+                 * relay sends us some data, try to interpretate
+                 */
+                self.client.on('error', function (error) {
+                    console.error(error);
+                });
+
+                /**
+                 * relay sends us some data, try to interpretate
+                 */
+                self.client.on('data', function (data) {
+                    self.getStatesFromData(data);
+                    self.delayedDisconnect();
+                });
+
+
+                cb(self.client);
+            });
+
+
+
+
+
+    }
+
+
     /**
-     * close tcp connection
+     * connection closes n after last action
+     * if read delay is smaller than this, the connection will never closed
+     *
+     * @type {number}
      */
-    EthRly16.prototype.disconnect = function() {
-        this.client.emit("close");
+    EthRly16.prototype.iCloseDelay = 50;
+
+    /**
+     *
+     */
+    EthRly16.prototype.delayedDisconnect = function(){
+        var self = this;
+        if( this.disconnectTimeout !== undefined ) {
+            clearTimeout(this.disconnectTimeout);
+        }
+        this.disconnectTimeout = setTimeout(function(){
+            if (self.client !== undefined) {
+                self.client.destroy();
+            }
+            self.disconnectTimeout = undefined;
+        }, this.iCloseDelay);
     };
 
 
@@ -165,52 +220,57 @@ var EthRly16 = null;
     /**
      * get the states from th socket
      */
-    EthRly16.prototype.getStates = function() {
+    EthRly16.prototype.getStates = function () {
         var self = this;
         var iii = new Number();
         iii = 0x5B;
-        var bSuccess = this.client.write(
-            iii.toString(16),
-            'hex',
-            function(){
-            }
-        );
+        var bSuccess = this.getClient(function (client) {
+            client.write(
+                iii.toString(16),
+                'hex',
+                function () {
+                }
+            );
+        });
     }
 
 
     /**
      *
+     * @param iii
      * @param callback
      */
-    EthRly16.prototype.waitForStatesCallBackInit = function(callback) {
+    EthRly16.prototype.writeCommand = function(iii, callback) {
         var self = this;
-        if( callback !== undefined ) {
-            self.getStates();
-            this.aStatesDataCallbacks.push(callback);
-        }
+        var bSuccess = this.getClient(function (client) {
+            client.write(
+                iii.toString(16),
+                'hex',
+                function () {
+                    self.delayedDisconnect();
+                    if( typeof callback === "function" ) {
+                        callback();
+                    }
+                }
+            );
+        });
     }
-
-
 
     /**
      * Switch all relays off
      *
      * @returns boolean
      */
-    EthRly16.prototype.allOff = function(callback) {
-        var self = this;
+    EthRly16.prototype.allOff = function (callback) {
         var iii = new Number();
         iii = 0x6E;
-        var bSuccess = this.client.write(
-            iii.toString(16),
-            'hex',
-            function(){
-                self.waitForStatesCallBackInit(callback);
+        this.writeCommand(iii, function(){
+            self.currentStates = [false, false, false, false, false, false, false, false];
+            if( typeof callback === "function" ) {
+                callback();
             }
-        );
-        return bSuccess;
+        });
     };
-
 
 
     /**
@@ -218,20 +278,18 @@ var EthRly16 = null;
      *
      * @returns boolean
      */
-    EthRly16.prototype.allOn = function(callback) {
+    EthRly16.prototype.allOn = function (callback) {
         var self = this;
         var iii = new Number();
         iii = 0x64;
-        var bSuccess = this.client.write(
-            iii.toString(16),
-            'hex',
-            function(){
-                self.waitForStatesCallBackInit(callback);
+        this.writeCommand(iii, function(){
+            self.currentStates = [true, true, true, true, true, true, true, true];
+            if( typeof callback === "function" ) {
+                callback();
             }
-        );
-        return bSuccess;
-    };
 
+        });
+    };
 
 
     /**
@@ -239,19 +297,17 @@ var EthRly16 = null;
      *
      * @param iRelaisNo
      */
-    EthRly16.prototype.relaisOff = function(iRelaisNo, callback) {
+    EthRly16.prototype.relaisOff = function (iRelaisNo, callback) {
         var self = this;
         var iii = new Number();
         iii = 111;
         iii += iRelaisNo;
-        //console.log(iii);
-        var bSuccess = this.client.write(
-            iii.toString(16),
-            'hex',
-            function(){
-                self.waitForStatesCallBackInit(callback);
+        this.writeCommand(iii, function(){
+            self.currentStates[iRelaisNo] = false;
+            if( typeof callback === "function" ) {
+                callback();
             }
-        );
+        });
     };
 
 
@@ -261,20 +317,17 @@ var EthRly16 = null;
      * @param iRelaisNo
      * @returns boolean
      */
-    EthRly16.prototype.relaisOn = function(iRelaisNo, callback) {
+    EthRly16.prototype.relaisOn = function (iRelaisNo, callback) {
         var self = this;
         var iii = new Number();
         iii = 101;
         iii += iRelaisNo;
-        //console.log(iii);
-        var bSuccess = this.client.write(
-            iii.toString(16),
-            'hex',
-            function(){
-                self.waitForStatesCallBackInit(callback);
+        this.writeCommand(iii, function(){
+            self.currentStates[iRelaisNo] = true;
+            if( typeof callback === "function" ) {
+                callback();
             }
-        );
-        return bSuccess;
+        });
     };
 
 
@@ -283,13 +336,15 @@ var EthRly16 = null;
      *
      * @param aStates
      */
-    EthRly16.prototype.switchStates = function(aStates) {
+    EthRly16.prototype.switchStates = function (aStates) {
         var self = this;
-        for( var i=0 ; i<aStates.length ; i++ ) {
-            if( aStates[i] )
+        for (var i = 0; i < aStates.length; i++) {
+            if (aStates[i]) {
                 this.relaisOn(i)
-            else
+            }
+            else {
                 this.relaisOff(i)
+            }
         }
     };
 
@@ -300,15 +355,12 @@ var EthRly16 = null;
      * @param iRelay
      * @returns boolean
      */
-    EthRly16.prototype.isRelayOn = function(iRelay) {
+    EthRly16.prototype.isRelayOn = function (iRelay) {
         return this.currentStates[iRelay];
     };
 
 
-
 })();
-
-
 
 
 /**
