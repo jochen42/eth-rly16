@@ -7,7 +7,7 @@
 
 
 /**
- * Modul requirements
+ * npm requirements
  */
 var net = require('net');
 
@@ -67,13 +67,14 @@ var EthRly16 = null;
 
 
     /**
-     * interpretas the states from serial buffer
+     * interpretates the states from serial buffer
      *
      * @param SerBuf
      */
     EthRly16.prototype.getStatesFromData = function (SerBuf) {
-        console.log("getStatesFromData");
         var self = this;
+
+
 
         if ((SerBuf[0] & 0x01) == 0x01)
             this.currentStates[0] = true;
@@ -117,21 +118,30 @@ var EthRly16 = null;
 
 
 
-        console.log(typeof this.getStatesCallback);
         if (typeof this.getStatesCallback === "function") {
             this.getStatesCallback(this.getStatesCallbackData);
         }
     };
 
 
+    /**
+     * configure the states callback
+     *
+     * @param cb
+     * @param data
+     */
     EthRly16.prototype.setGetStatesCallback = function (cb, data) {
         this.getStatesCallback = cb;
         this.getStatesCallbackData = data;
     }
 
 
-
-
+    /**
+     * get the socket-client, if not defined create a new one
+     * returned by callback
+     *
+     * @param cb
+     */
     EthRly16.prototype.getClient = function (cb) {
         var self = this;
         if (this.client !== undefined) {
@@ -141,7 +151,7 @@ var EthRly16 = null;
 
         this.idStatesInterval = false;
 
-        // NET-CLIENT-Instancee
+        // NET-CLIENT-Instance
 
         this.client = new net.Socket({
             readable: true,
@@ -153,14 +163,9 @@ var EthRly16 = null;
             function(){
                 self.client.setNoDelay(true);
                 self.getStates();
-                console.log("EthRly16:getClient:client:connect");
-
 
                 self.client.on('close', function (had_error) {
-                    console.log("EthRly16:getClient:client:connect:close");
-
                     clearInterval(self.idStatesInterval);
-
                     self.client = undefined;
                 });
 
@@ -199,7 +204,10 @@ var EthRly16 = null;
      */
     EthRly16.prototype.iCloseDelay = 50;
 
+
+
     /**
+     * for reducing disconnects while fast swichting, make the disconnect async
      *
      */
     EthRly16.prototype.delayedDisconnect = function(){
@@ -234,8 +242,22 @@ var EthRly16 = null;
         });
     }
 
+    /**
+     * does it make sense - it is depending on network speed - hard to handle
+     *
+     * @param callback
+     * @param delay
+     */
+    EthRly16.prototype.delayedCallback = function(callback, delay) {
+        if( typeof callback === "function" ) {
+            setTimeout(function () {
+                callback();
+            }, delay);
+        }
+    }
 
     /**
+     * write a command to the tcp-socket
      *
      * @param iii
      * @param callback
@@ -364,6 +386,6 @@ var EthRly16 = null;
 
 
 /**
- * node js export
+ * npm module export
  */
 module.exports = EthRly16;
